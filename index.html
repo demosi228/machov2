@@ -140,7 +140,7 @@
         </div>
       </div>
 
-      <!-- Global Controls: Voice, SFX, Rules, GitHub Deploy -->
+      <!-- Global Controls: Voice, SFX, Rules, GitHub Deploy, Bot AI -->
       <div class="flex items-center gap-1.5 sm:gap-2">
         <!-- Voice Chat Quick Controls (Visible in Room) -->
         <div id="voice-toolbar" class="hidden items-center gap-1.5 bg-white/5 border border-white/10 rounded-xl p-1">
@@ -173,7 +173,10 @@
           class="px-2.5 sm:px-3 py-2 rounded-xl bg-indigo-600/80 hover:bg-indigo-600 border border-indigo-400/30 text-xs sm:text-sm font-medium text-white flex items-center gap-1.5 shadow transition">
           <i class="fa-brands fa-github"></i>
           <span class="hidden sm:inline">GitHub</span>
-          <button onclick="window.setGeminiApiKey()" title="Cấu hình Gemini API Key cho Bot AI"
+        </button>
+
+        <!-- Gemini API Key Config for Bot AI -->
+        <button onclick="window.setGeminiApiKey()" title="Cấu hình Gemini API Key cho Bot AI"
           class="px-2.5 sm:px-3 py-2 rounded-xl bg-amber-600/80 hover:bg-amber-600 border border-amber-400/30 text-xs sm:text-sm font-medium text-white flex items-center gap-1.5 shadow transition">
           <i class="fa-solid fa-brain"></i>
           <span class="hidden sm:inline">Bot AI</span>
@@ -528,7 +531,7 @@ lmao.
           </div>
           <div class="p-3.5 rounded-xl bg-slate-800/60 border border-white/15">
             <h4 class="font-bold text-slate-200 mb-1">🧑‍🌾 Dân Làng (Phe Dân)</h4>
-            <p class="text-xs text-slate-300">Không có kỹ năng ban đêm, dùng sự suy luận sắc bén vào ban ngày để tìm và bỏ phiếu treo cổ Ma Sói.</p>
+            <p class="text-xs text-slate-300">Không có kỹ năng ban đêm, dùng sự suy luận sắc bén vào ban ngày để tìm và treo cổ Ma Sói.</p>
           </div>
         </div>
         <div class="p-3.5 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-300 space-y-1">
@@ -570,8 +573,8 @@ lmao.
           <ol class="list-decimal list-inside space-y-1.5 text-slate-300">
             <li>Tạo một Repository mới trên GitHub (ví dụ: <code class="text-indigo-300">ma-soi-online</code>).</li>
             <li>Tải file <code class="text-emerald-300">index.html</code> vừa download lên repository đó.</li>
-            <li>Vào mục <strong>Settings &rarr; Pages</strong>, chọn nhánh <code class="text-indigo-300">main</code> và bấm <strong>Save</strong>.</li>
-            <li><em>Lưu ý khi tự host ngoài môi trường này:</em> Hãy dán cấu hình dự án Firebase của bạn vào biến <code class="text-amber-300">FALLBACK_FIREBASE_CONFIG</code> ở đầu thẻ <code class="text-indigo-300">&lt;script type="module"&gt;</code> để kích hoạt kết nối phòng chơi trực tuyến trên tên miền riêng của bạn.</li>
+            <li>Vào mục <strong>Settings → Pages</strong>, chọn nhánh <code class="text-indigo-300">main</code> và bấm <strong>Save</strong>.</li>
+            <li><em>Lưu ý khi tự host ngoài môi trường này:</em> Hãy dán cấu hình dự án Firebase của bạn vào biến <code class="text-amber-300">FALLBACK_FIREBASE_CONFIG</code> ở đầu thẻ <code class="text-indigo-300"><script type="module"></code> để kích hoạt kết nối phòng chơi trực tuyến trên tên miền riêng của bạn.</li>
           </ol>
         </div>
       </div>
@@ -757,7 +760,7 @@ lmao.
     };
 
     // =========================================================================
-    // 4. APPLICATION STATE
+    // AI BOT ENGINE (GEMINI API REASONING)
     // =========================================================================
     const BOT_PERSONALITIES = {
       'Bot Minh Triết': 'điềm tĩnh, hay phân tích logic và để ý chi tiết nhỏ',
@@ -778,95 +781,112 @@ lmao.
 
     window.setGeminiApiKey = () => {
       const current = localStorage.getItem('lang_tuat_gemini_key') || '';
-      const key = prompt('Dán Gemini API Key của bạn vào đây (để trống nếu muốn dùng Bot Offline):', current);
+      const key = prompt('Dán Gemini API Key của bạn vào đây để Bot AI suy luận thật (để trống nếu muốn xóa key):', current);
       if (key !== null) {
         localStorage.setItem('lang_tuat_gemini_key', key.trim());
-        showToast(key.trim() ? 'Đã lưu Gemini API Key cho Bot AI!' : 'Đã xóa API Key, chuyển sang Bot Offline.', 'success');
+        showToast(key.trim() ? 'Đã lưu Gemini API Key cho Bot AI!' : 'Đã xóa Gemini API Key.', 'success');
       }
     };
 
     async function generateAIBotReply(bot, room, recentMessages, triggerReason) {
-      const apiKey = localStorage.getItem('lang_tuat_gemini_key');
-      if (!apiKey) return generateSmartOfflineReply(bot, room, recentMessages);
+      const apiKey = (localStorage.getItem('lang_tuat_gemini_key') || '').trim();
+      if (!apiKey) {
+        return 'Chưa có Gemini API Key kìa (bấm nút Bot AI trên thanh trên để dán key thì tụi tui mới suy luận thật được).';
+      }
 
-      const aliveList = Object.values(room.players || {})
-        .filter(p => p.alive)
-        .map(p => p.name)
-        .join(', ');
-
-      const deadList = Object.values(room.players || {})
-        .filter(p => !p.alive)
-        .map(p => p.name)
-        .join(', ') || 'Chưa có ai';
+      const playersList = Object.values(room.players || {})
+        .map(p => `- ${p.name}: ${p.alive ? 'Còn sống' : 'Đã chết'}`)
+        .join('\n');
 
       const roleInfo = ROLES[bot.role] || ROLES.villager;
-      const personality = BOT_PERSONALITIES[bot.name] || 'tự nhiên, hài hước kiểu game thủ Việt Nam';
+      const personality = BOT_PERSONALITIES[bot.name] || 'tự nhiên, sắc sảo, không nói sáo rỗng';
 
-      let secretKnowledge = `Vai trò bí mật của bạn là: ${roleInfo.name} (${roleInfo.team === 'wolf' ? 'Phe Ma Sói - phải giả vờ làm người tốt, đổ tội cho người khác' : 'Phe Dân Làng - phải tìm ra Ma Sói'}).`;
+      let secretKnowledge = `Vai trò bí mật của bạn: ${roleInfo.name} (${roleInfo.team === 'wolf' ? 'Phe Ma Sói - mục tiêu là sống sót và đánh lạc hướng dân làng' : 'Phe Dân Làng - mục tiêu là tìm và treo cổ Ma Sói'}).`;
       if (bot.role === 'werewolf') {
         const teammates = Object.values(room.players || {})
           .filter(p => p.role === 'werewolf' && p.uid !== bot.uid)
           .map(p => p.name);
-        if (teammates.length > 0) secretKnowledge += ` Đồng bọn Ma Sói của bạn là: ${teammates.join(', ')} (tuyệt đối không bán đứng đồng bọn).`;
+        if (teammates.length > 0) {
+          secretKnowledge += `\nĐồng bọn Ma Sói cùng phe: ${teammates.join(', ')} (không tố cáo đồng bọn, có thể giả vờ phối hợp hoặc bênh hợp lý để không bị lộ).`;
+        }
       } else if (bot.role === 'seer' && room.nightActions?.seerTarget) {
         const tName = room.players[room.nightActions.seerTarget]?.name;
-        const tTeam = room.nightActions.seerResult === 'wolf' ? 'Ma Sói' : 'Người tốt';
-        if (tName) secretKnowledge += ` Đêm qua bạn đã soi ${tName} và biết người này là ${tTeam}.`;
+        const tTeam = room.nightActions.seerResult === 'wolf' ? 'MA SÓI' : 'PHE DÂN';
+        if (tName) {
+          secretKnowledge += `\nThông tin soi đêm qua: ${tName} thuộc ${tTeam} (hãy cân nhắc khi nào nên công bố để tránh bị Sói nhắm hoặc bị nghi ngờ).`;
+        }
+      } else if (bot.role === 'bodyguard' && room.nightActions?.lastGuardTarget) {
+        const gName = room.players[room.nightActions.lastGuardTarget]?.name;
+        if (gName) secretKnowledge += `\nĐêm trước bạn vừa bảo vệ ${gName} (đêm nay không thể bảo vệ lại người này).`;
       }
+
+      const votesSummary = Object.entries(room.dayVotes || {})
+        .map(([voterId, targetId]) => {
+          const voter = room.players?.[voterId]?.name || voterId;
+          const target = room.players?.[targetId]?.name || targetId;
+          return `${voter} -> vote ${target}`;
+        })
+        .join(', ') || 'Chưa có ai vote';
 
       const chatHistoryText = recentMessages
         .filter(m => m.channel === 'general')
-        .slice(-10)
-        .map(m => `${m.senderName}: ${m.text}`)
+        .slice(-16)
+        .map(m => m.isSystem ? `[Hệ thống]: ${m.text}` : `${m.senderName}: ${m.text}`)
         .join('\n');
 
-      const promptText = `Bạn đang đóng vai người chơi tên "${bot.name}" trong game Ma Sói online cùng bạn bè Việt Nam.
-Tính cách của bạn: ${personality}.
+      const promptText = `Bạn là "${bot.name}" đang chơi Ma Sói cùng những người khác.
+Phong cách của bạn: ${personality}.
 ${secretKnowledge}
 
-Trạng thái ván đấu hiện tại (Ngày ${room.dayCount}, giai đoạn: ${room.phase}):
-- Sự kiện vừa xảy ra: ${room.lastEventText || 'Bắt đầu ngày mới'}
-- Người còn sống: ${aliveList}
-- Người đã chết: ${deadList}
-- Lý do bạn lên tiếng lúc này: ${triggerReason}
+Tình hình ván đấu (Ngày ${room.dayCount}, giai đoạn: ${room.phase}):
+- Diễn biến gần nhất: ${room.lastEventText || 'Chưa có'}
+- Danh sách người chơi:
+${playersList}
+- Trạng thái bỏ phiếu hiện tại: ${votesSummary}
 
-Đoạn chat gần đây trong làng:
-${chatHistoryText || '(Chưa có ai nói gì)'}
+Lịch sử trò chuyện gần đây:
+${chatHistoryText || '(Chưa có tin nhắn)'}
 
-Yêu cầu bắt buộc:
-1. Trả lời bằng tiếng Việt tự nhiên, ngắn gọn (1-2 câu, tối đa 30 từ), đúng kiểu chat game của giới trẻ Việt Nam.
-2. Phản hồi trực tiếp vào nội dung người chơi hoặc bot khác vừa nói ở trên (nếu có), tuyệt đối KHÔNG hỏi những câu vô lý trái với sự kiện vừa xảy ra.
-3. Không bao giờ tự khai thẳng vai trò trừ khi thực sự cần thiết để tự cứu mình.
-4. Chỉ xuất ra đúng nội dung câu chat của "${bot.name}", không kèm tên ở đầu hay dấu ngoặc kép.`;
+Nhiệm vụ của bạn lúc này: ${triggerReason}
+
+Cách suy nghĩ bắt buộc:
+1. Đọc kỹ xem ai vừa nói gì, có ai tự nhận vai, vu khống, né tránh câu hỏi hay nói mâu thuẫn với diễn biến không.
+2. Phân tích ngắn gọn theo góc nhìn của "${bot.name}" và phản hồi thẳng vào ý người vừa nói (hoặc chỉ ra điểm đáng nghi/hợp lý).
+3. Viết tiếng Việt tự nhiên như người thật chat trong game (1-2 câu, ngắn gọn, dễ hiểu).
+4. Tuyệt đối KHÔNG dùng các câu sáo rỗng lặp lại như "nghe cũng có lý nhưng hơi cấn cấn". Không tự lộ vai trò một cách ngớ ngẩn.
+5. Chỉ trả về đúng câu chat, không thêm tiền tố "${bot.name}:" hay dấu ngoặc kép bao quanh.`;
 
       try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: promptText }] }],
-            generationConfig: { temperature: 0.85, maxOutputTokens: 90 }
-          })
-        });
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: promptText }] }],
+              generationConfig: { temperature: 0.9, maxOutputTokens: 120 }
+            })
+          }
+        );
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          console.warn('Gemini API error:', res.status, errData);
+          return `(Lỗi gọi AI ${res.status} — kiểm tra lại Gemini API Key hoặc quota đi)`;
+        }
+
         const data = await res.json();
         const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        return reply || generateSmartOfflineReply(bot, room, recentMessages);
+        return reply || '(AI đang im lặng suy nghĩ...)';
       } catch (err) {
-        console.warn('Gemini Bot fallback:', err);
-        return generateSmartOfflineReply(bot, room, recentMessages);
+        console.warn('Network/Gemini error:', err);
+        return '(Lỗi mạng khi gọi AI, thử lại sau vài giây nhé)';
       }
     }
 
-    function generateSmartOfflineReply(bot, room, recentMessages) {
-      const lastMsg = [...recentMessages].reverse().find(m => !m.isSystem && m.senderId !== bot.uid);
-      const hadDeath = (room.lastEventText || '').includes('sát hại');
-      if (lastMsg) {
-        return `${lastMsg.senderName} nói nghe cũng có lý, nhưng tui vẫn thấy hơi cấn cấn sao á.`;
-      }
-      return hadDeath
-        ? 'Đêm qua mất người rồi, hôm nay phải lọc kỹ chứ không là ăn cứt cả làng đấy trời fahh!'
-        : 'Đêm qua không ai chết, chắc Bảo Vệ hoặc Phù Thủy cứu chuẩn rồi hoặc hết cứu :).';
-    }
+    // =========================================================================
+    // 4. APPLICATION STATE
+    // =========================================================================
     let state = {
       roomId: null,
       nickname: '',
@@ -1009,7 +1029,6 @@ Yêu cầu bắt buộc:
           p => !p.isBot && p.uid !== currentUser.uid
         );
         for (const peer of humanPlayers) {
-          // Deterministic initiator: higher UID initiates offer to avoid glare
           if (currentUser.uid > peer.uid && !this.peers[peer.uid]) {
             await this.createOffer(peer.uid);
           }
@@ -1097,7 +1116,6 @@ Yêu cầu bắt buộc:
         } catch (e) {}
       }
 
-      // Enforce role/phase voice rules (e.g., non-wolves muted at night)
       enforcePhaseVoiceRules(room) {
         if (!room || !currentUser || room.status !== 'playing') return;
         const me = room.players?.[currentUser.uid];
@@ -1108,12 +1126,11 @@ Yêu cầu bắt buộc:
         let canSpeakNow = true;
 
         if (!me.alive) {
-          canSpeakNow = false; // Dead players mute in main voice
+          canSpeakNow = false;
         } else if (isNight && !isWolf) {
-          canSpeakNow = false; // Villagers sleep at night
+          canSpeakNow = false;
         }
 
-        // Mute/unmute remote audio tracks based on channel
         Object.entries(room.players || {}).forEach(([uid, p]) => {
           if (uid === currentUser.uid) return;
           const audioEl = document.getElementById(`audio-${uid}`);
@@ -1123,18 +1140,14 @@ Yêu cầu bắt buộc:
             return;
           }
           if (!me.alive) {
-            // Ghosts can hear everyone
             audioEl.muted = false;
           } else if (isNight) {
-            // At night, only wolves hear wolves
             audioEl.muted = !(isWolf && p.role === 'werewolf' && p.alive);
           } else {
-            // Day: alive players hear alive players
             audioEl.muted = !p.alive;
           }
         });
 
-        // Auto-mute mic track if not allowed to speak in current phase
         if (this.localStream) {
           this.localStream.getAudioTracks().forEach(t => {
             t.enabled = this.micEnabled && canSpeakNow;
@@ -1279,8 +1292,8 @@ Yêu cầu bắt buộc:
       const initialRoom = {
         roomId: roomCode,
         hostId: currentUser.uid,
-        status: 'lobby', // 'lobby' | 'playing' | 'gameover'
-        phase: 'lobby',  // 'night' | 'dawn' | 'day' | 'vote' | 'hunter_shot'
+        status: 'lobby',
+        phase: 'lobby',
         dayCount: 1,
         phaseEndsAt: 0,
         players: {
@@ -1337,64 +1350,6 @@ Yêu cầu bắt buộc:
       } else {
         state.messages = [{ id: '1', channel: 'general', senderName: 'Hệ thống', text: `${nick} đã tạo phòng chơi thử với Bot AI.`, isSystem: true, createdAt: Date.now() }];
         enterLobbyView();
-      }
-    };
-
-    window.handleJoinRoom = async () => {
-      const nick = document.getElementById('input-nickname').value.trim();
-      const code = document.getElementById('input-room-code').value.trim().toUpperCase();
-      if (!nick) {
-        showToast('Vui lòng nhập tên nhân vật của bạn!', 'error');
-        return;
-      }
-      if (!code || code.length < 4) {
-        showToast('Vui lòng nhập mã phòng hợp lệ!', 'error');
-        return;
-      }
-      if (isOfflineDemoMode || !db) {
-        showToast('Chưa kết nối được máy chủ trực tuyến Firebase!', 'error');
-        return;
-      }
-
-      sfx.playActionClick();
-      state.nickname = nick;
-
-      try {
-        const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'werewolf_rooms', code);
-        const snap = await getDoc(roomRef);
-        if (!snap.exists()) {
-          showToast(`Không tìm thấy phòng có mã "${code}"!`, 'error');
-          return;
-        }
-        const data = snap.data();
-        if (data.status !== 'lobby') {
-          showToast('Phòng này đang trong ván chơi, không thể tham gia lúc này!', 'error');
-          return;
-        }
-        const playerCount = Object.keys(data.players || {}).length;
-        if (playerCount >= 12) {
-          showToast('Phòng đã đầy (tối đa 12 người)!', 'error');
-          return;
-        }
-
-        state.roomId = code;
-        // Cập nhật bằng dot-notation để thêm người chơi mới mà không làm mất người cũ
-        await updateDoc(roomRef, {
-          [`players.${currentUser.uid}`]: {
-            uid: currentUser.uid,
-            name: nick,
-            isBot: false,
-            alive: true,
-            role: 'villager',
-            avatarSeed: Math.floor(Math.random() * 1000)
-          }
-        });
-
-        subscribeToRoom(code);
-        await addSystemMessage(code, `${nick} đã tham gia phòng.`);
-      } catch (err) {
-        console.error(err);
-        showToast('Không thể tham gia phòng. Kiểm tra lại Firestore Rules (Test Mode)!', 'error');
       }
     };
 
@@ -1481,11 +1436,12 @@ Yêu cầu bắt buộc:
         const hadMore = msgs.length > state.messages.length && state.messages.length > 0;
         state.messages = msgs;
         if (hadMore) sfx.playChatPop();
+        renderChatMessages();
+
         const newestMsg = msgs[msgs.length - 1];
         if (newestMsg) {
           handleConversationFlow(newestMsg);
         }
-        renderChatMessages();
       }, (error) => {
         console.error('Messages snapshot error:', error);
       });
@@ -1507,7 +1463,6 @@ Yêu cầu bắt buộc:
 
     async function syncRoomUpdate(patchObj) {
       if (!state.roomData) return;
-      // Apply locally first for immediate responsiveness
       Object.entries(patchObj).forEach(([key, val]) => {
         if (key.includes('.')) {
           const parts = key.split('.');
@@ -1533,7 +1488,6 @@ Yêu cầu bắt buộc:
 
       try {
         const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'werewolf_rooms', state.roomId);
-        // Convert '__DELETE__' if any by writing full players map when deleting
         const cleanPatch = {};
         let hasDelete = false;
         for (const [k, v] of Object.entries(patchObj)) {
@@ -1640,7 +1594,6 @@ Yêu cầu bắt buộc:
         return;
       }
 
-      // Build role deck
       const deck = [];
       const cfg = room.roleConfig || {};
       Object.entries(cfg).forEach(([rKey, qty]) => {
@@ -1652,7 +1605,6 @@ Yêu cầu bắt buộc:
         return;
       }
 
-      // Fisher-Yates Shuffle
       for (let i = deck.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [deck[i], deck[j]] = [deck[j], deck[i]];
@@ -1668,7 +1620,7 @@ Yêu cầu bắt buộc:
       });
 
       sfx.playWolfHowl();
-      const nightDuration = 28000; // 28 seconds per night
+      const nightDuration = 28000;
 
       await syncRoomUpdate({
         status: 'playing',
@@ -1739,41 +1691,79 @@ Yêu cầu bắt buộc:
           }
         }, 2500);
       } else if (room.phase === 'day') {
-        // Bots send realistic Vietnamese discussion messages
-        const botPhrases = [
-          'Đêm qua yên ắng quá, mọi người có manh mối gì không?',
-          'Tôi thấy người im lặng nãy giờ rất đáng nghi...',
-          'Tiên Tri nếu soi được Sói thì lên tiếng đi nhé!',
-          'Khoan hãy treo cổ bừa, nghe mọi người giải thích đã.',
-          'Tôi là Dân Làng chính hiệu, đừng nghi ngờ tôi!'
-        ];
-        aliveBots.slice(0, 2).forEach((bot, idx) => {
+        botConsecutiveReplies = 0;
+        const starters = aliveBots.slice(0, 2);
+        starters.forEach((bot, idx) => {
           setTimeout(async () => {
             if (!state.roomData || state.roomData.phase !== 'day') return;
-            const phrase = botPhrases[Math.floor(Math.random() * botPhrases.length)];
-            await postMessageToRoom(state.roomId, {
-              channel: 'general',
-              senderId: bot.uid,
-              senderName: bot.name,
-              text: phrase,
-              isSystem: false,
-              createdAt: Date.now()
-            });
-          }, 3000 + idx * 3500);
+            if (!state.roomData.players?.[bot.uid]?.alive) return;
+            const opening = await generateAIBotReply(
+              bot,
+              state.roomData,
+              state.messages,
+              'Mở đầu ngày mới, nhận xét diễn biến đêm qua và đặt vấn đề thảo luận cho cả làng.'
+            );
+            if (opening) {
+              await postMessageToRoom(state.roomId, {
+                channel: 'general',
+                senderId: bot.uid,
+                senderName: bot.name,
+                text: opening,
+                isSystem: false,
+                createdAt: Date.now()
+              });
+            }
+          }, 2200 + idx * 3200);
         });
       } else if (room.phase === 'vote') {
         setTimeout(async () => {
           if (!state.roomData || state.roomData.phase !== 'vote') return;
-          const patch = {};
-          aliveBots.forEach(bot => {
-            const suspects = alivePlayers.filter(p => p.uid !== bot.uid && !(bot.role === 'werewolf' && p.role === 'werewolf'));
-            if (suspects.length > 0) {
-              const target = suspects[Math.floor(Math.random() * suspects.length)];
-              patch[`dayVotes.${bot.uid}`] = target.uid;
+          const apiKey = (localStorage.getItem('lang_tuat_gemini_key') || '').trim();
+          const recentChat = state.messages
+            .filter(m => m.channel === 'general' && !m.isSystem)
+            .slice(-14)
+            .map(m => `${m.senderName}: ${m.text}`)
+            .join('\n');
+
+          for (const bot of aliveBots) {
+            const suspects = alivePlayers.filter(
+              p => p.uid !== bot.uid && !(bot.role === 'werewolf' && p.role === 'werewolf')
+            );
+            if (suspects.length === 0) continue;
+
+            let chosen = suspects[Math.floor(Math.random() * suspects.length)];
+
+            if (apiKey && recentChat) {
+              try {
+                const candidateNames = suspects.map(s => s.name);
+                const votePrompt = `Bạn là "${bot.name}" (vai trò: ${ROLES[bot.role]?.name || 'Dân Làng'}, phe: ${ROLES[bot.role]?.team === 'wolf' ? 'Ma Sói' : 'Dân Làng'}).
+Dựa vào đoạn chat dưới đây, hãy chọn 1 người đáng nghi nhất để bỏ phiếu treo cổ trong danh sách: ${candidateNames.join(', ')}.
+Đoạn chat:
+${recentChat}
+
+Chỉ trả về DUY NHẤT 1 tên chính xác trong danh sách trên, không giải thích thêm.`;
+
+                const r = await fetch(
+                  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      contents: [{ parts: [{ text: votePrompt }] }],
+                      generationConfig: { temperature: 0.4, maxOutputTokens: 30 }
+                    })
+                  }
+                );
+                if (r.ok) {
+                  const j = await r.json();
+                  const ans = (j?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+                  const matched = suspects.find(s => ans.toLowerCase().includes(s.name.toLowerCase()));
+                  if (matched) chosen = matched;
+                }
+              } catch (_) {}
             }
-          });
-          if (Object.keys(patch).length > 0) {
-            await syncRoomUpdate(patch);
+
+            await syncRoomUpdate({ [`dayVotes.${bot.uid}`]: chosen.uid });
           }
         }, 2500);
       } else if (room.phase === 'hunter_shot') {
@@ -1791,34 +1781,33 @@ Yêu cầu bắt buộc:
     }
 
     window.hostAdvancePhase = async () => {
-  const room = state.roomData;
-  if (!room || room.hostId !== currentUser.uid || room.status !== 'playing') return;
-  if (state.isAdvancingPhase) return;
+      const room = state.roomData;
+      if (!room || room.hostId !== currentUser.uid || room.status !== 'playing') return;
+      if (state.isAdvancingPhase) return;
 
-  state.isAdvancingPhase = true;
-  try {
-    if (room.phase === 'night') {
-      await resolveNightPhase();
-    } else if (room.phase === 'dawn') {
-      await startDayDiscussionPhase();
-    } else if (room.phase === 'day') {
-      await startVotingPhase();
-    } else if (room.phase === 'vote') {
-      await resolveVotingPhase();
-    } else if (room.phase === 'hunter_shot') {
-      await checkWinOrContinue('day');
-    }
-  } finally {
-    state.isAdvancingPhase = false;
-  }
-};
+      state.isAdvancingPhase = true;
+      try {
+        if (room.phase === 'night') {
+          await resolveNightPhase();
+        } else if (room.phase === 'dawn') {
+          await startDayDiscussionPhase();
+        } else if (room.phase === 'day') {
+          await startVotingPhase();
+        } else if (room.phase === 'vote') {
+          await resolveVotingPhase();
+        } else if (room.phase === 'hunter_shot') {
+          await checkWinOrContinue('day');
+        }
+      } finally {
+        state.isAdvancingPhase = false;
+      }
+    };
 
     async function resolveNightPhase() {
       const room = state.roomData;
       const na = room.nightActions || {};
       const players = { ...room.players };
 
-      // Count werewolf votes
       const voteCounts = {};
       Object.values(na.wolfVotes || {}).forEach(targetId => {
         if (targetId) voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
@@ -1833,12 +1822,8 @@ Yêu cầu bắt buộc:
       });
 
       const deaths = [];
-      let savedByGuardOrWitch = false;
-
       if (wolfTargetId && players[wolfTargetId]?.alive) {
-        if (na.guardTarget === wolfTargetId || na.witchSaveNight) {
-          savedByGuardOrWitch = true;
-        } else {
+        if (na.guardTarget !== wolfTargetId && !na.witchSaveNight) {
           deaths.push(wolfTargetId);
         }
       }
@@ -1889,7 +1874,7 @@ Yêu cầu bắt buộc:
 
       await syncRoomUpdate({
         phase: 'day',
-        phaseEndsAt: Date.now() + 45000, // 45s day discussion
+        phaseEndsAt: Date.now() + 45000,
         players,
         lastEventText: eventSummary,
         'nightActions.lastGuardTarget': na.guardTarget || null
@@ -1999,7 +1984,6 @@ Yêu cầu bắt buộc:
         return;
       }
 
-      // Determine whether hunter died at night (go to day) or by vote (go to next night)
       const wasNightDeath = Object.keys(room.dayVotes || {}).length === 0;
       if (wasNightDeath) {
         await syncRoomUpdate({
@@ -2085,7 +2069,6 @@ Yêu cầu bắt buộc:
       const target = room.players?.[targetUid];
       if (!target || !target.alive) return;
 
-      // Case 1: Hunter Shot
       if (room.phase === 'hunter_shot' && room.hunterPendingId === currentUser.uid) {
         if (targetUid === currentUser.uid) return;
         sfx.playActionClick();
@@ -2095,7 +2078,6 @@ Yêu cầu bắt buộc:
 
       if (!me.alive) return;
 
-      // Case 2: Night Actions
       if (room.phase === 'night') {
         if (me.role === 'werewolf') {
           if (target.role === 'werewolf') {
@@ -2146,7 +2128,6 @@ Yêu cầu bắt buộc:
         }
       }
 
-      // Case 3: Day Voting
       if (room.phase === 'vote') {
         if (targetUid === currentUser.uid) {
           showToast('Bạn không thể tự bỏ phiếu cho chính mình!', 'info');
@@ -2243,6 +2224,7 @@ Yêu cầu bắt buộc:
         createdAt: Date.now()
       });
     }
+
     async function handleConversationFlow(latestMsg) {
       const room = state.roomData;
       if (!room || room.hostId !== currentUser.uid || room.status !== 'playing') return;
@@ -2302,6 +2284,7 @@ Yêu cầu bắt buộc:
         isBotThinking = false;
       }
     }
+
     // =========================================================================
     // 12. UI RENDERING & COUNTDOWN TIMER
     // =========================================================================
@@ -2309,18 +2292,15 @@ Yêu cầu bắt buộc:
       const room = state.roomData;
       if (!room) return;
 
-      // Show voice toolbar once inside any room
       const voiceToolbar = document.getElementById('voice-toolbar');
       voiceToolbar.classList.remove('hidden');
       voiceToolbar.classList.add('flex');
 
-      // Connect WebRTC peers if mic is already enabled
       if (voiceManager.micEnabled) {
         voiceManager.connectToAllPeers();
       }
       voiceManager.enforcePhaseVoiceRules(room);
 
-      // Update body theme
       document.body.classList.remove('theme-lobby', 'theme-night', 'theme-day');
       if (room.status === 'playing') {
         document.body.classList.add(room.phase === 'night' ? 'theme-night' : 'theme-day');
@@ -2328,7 +2308,6 @@ Yêu cầu bắt buộc:
         document.body.classList.add('theme-lobby');
       }
 
-      // Switch views
       document.getElementById('view-home').classList.add('hidden');
       document.getElementById('view-lobby').classList.add('hidden');
       document.getElementById('view-game').classList.add('hidden');
@@ -2355,13 +2334,11 @@ Yêu cầu bắt buộc:
       const players = Object.values(room.players || {});
       document.getElementById('lobby-player-count').textContent = players.length;
 
-      // Toggle Host controls
       document.getElementById('btn-add-bot').classList.toggle('hidden', !isHost);
       document.getElementById('btn-auto-roles').classList.toggle('hidden', !isHost);
       document.getElementById('host-controls').classList.toggle('hidden', !isHost);
       document.getElementById('guest-waiting-msg').classList.toggle('hidden', isHost);
 
-      // Render Player Cards
       const listEl = document.getElementById('lobby-player-list');
       listEl.innerHTML = players.map(p => {
         const isMe = p.uid === currentUser.uid;
@@ -2391,7 +2368,6 @@ Yêu cầu bắt buộc:
         `;
       }).join('');
 
-      // Render Role Configuration
       const cfg = room.roleConfig || {};
       let totalRoles = 0;
       const roleListEl = document.getElementById('role-config-list');
@@ -2428,7 +2404,6 @@ Yêu cầu bắt buộc:
       const isHost = room.hostId === currentUser.uid;
       document.getElementById('btn-force-next-phase').classList.toggle('hidden', !isHost);
 
-      // Phase Banner Info
       document.getElementById('game-day-badge').textContent = `Ngày ${room.dayCount || 1}`;
       const iconBox = document.getElementById('phase-icon-box');
       const phaseTitle = document.getElementById('game-phase-title');
@@ -2452,7 +2427,6 @@ Yêu cầu bắt buộc:
         phaseDesc.textContent = 'Thợ Săn đang chọn 1 mục tiêu để kéo theo xuống mồ!';
       }
 
-      // Event Banner
       const eventBanner = document.getElementById('event-banner');
       if (room.lastEventText) {
         eventBanner.classList.remove('hidden');
@@ -2461,7 +2435,6 @@ Yêu cầu bắt buộc:
         eventBanner.classList.add('hidden');
       }
 
-      // My Role Card
       const me = room.players?.[currentUser.uid];
       if (me) {
         const roleInfo = ROLES[me.role] || ROLES.villager;
@@ -2479,14 +2452,12 @@ Yêu cầu bắt buộc:
           aliveBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300';
         }
 
-        // Special Controls (Witch Heal Button / Seer Result Display)
         const specialBox = document.getElementById('role-special-controls');
         specialBox.innerHTML = '';
 
         if (me.alive && room.phase === 'night') {
           if (me.role === 'witch') {
             const na = room.nightActions || {};
-            // Find who wolves currently targeted
             const wolfTargets = Object.values(na.wolfVotes || {});
             const victimId = wolfTargets[0];
             const victimName = victimId ? room.players[victimId]?.name : null;
@@ -2522,7 +2493,6 @@ Yêu cầu bắt buộc:
         }
       }
 
-      // Action Instruction Text
       const instrEl = document.getElementById('action-instruction');
       if (!me?.alive && !(room.phase === 'hunter_shot' && room.hunterPendingId === currentUser.uid)) {
         instrEl.textContent = 'Bạn đã chết. Theo dõi ván đấu từ cõi âm.';
@@ -2540,12 +2510,10 @@ Yêu cầu bắt buộc:
         instrEl.textContent = '💬 Thảo luận trên khung chat hoặc Voice Chat';
       }
 
-      // Render Players Arena Grid
       const players = Object.values(room.players || {});
       const aliveCount = players.filter(p => p.alive).length;
       document.getElementById('alive-count-label').textContent = `${aliveCount}/${players.length}`;
 
-      // Tally current day votes for display
       const voteCounts = {};
       if (room.phase === 'vote') {
         Object.values(room.dayVotes || {}).forEach(tid => {
@@ -2572,25 +2540,21 @@ Yêu cầu bắt buộc:
             ${!p.alive ? 'bg-black/50 border-white/5 opacity-55 grayscale' : 'bg-black/35 hover:bg-white/10 border-white/15 cursor-pointer'}
             ${(isMyVoteTarget || isMyNightTarget) ? 'ring-2 ring-amber-400 border-amber-400 bg-amber-950/20' : ''}">
 
-            <!-- Vote Count Badge -->
             ${votesOnThis > 0 ? `
               <span class="absolute -top-2 -right-2 px-2 py-0.5 rounded-full bg-rose-600 text-white text-xs font-bold shadow-lg">
                 ${votesOnThis} phiếu
               </span>
             ` : ''}
 
-            <!-- Avatar -->
             <div data-avatar-uid="${p.uid}" class="w-12 h-12 rounded-full mb-2 flex items-center justify-center font-bold text-base text-white shadow-md
               ${!p.alive ? 'bg-slate-800' : (p.isBot ? 'bg-gradient-to-br from-emerald-600 to-teal-800' : 'bg-gradient-to-br from-indigo-500 to-purple-700')}">
               ${!p.alive ? '<i class="fa-solid fa-skull text-slate-400"></i>' : (p.isBot ? '<i class="fa-solid fa-robot"></i>' : escapeHtml(p.name.charAt(0).toUpperCase()))}
             </div>
 
-            <!-- Name -->
             <div class="font-semibold text-xs sm:text-sm text-white truncate w-full">
               ${escapeHtml(p.name)}
             </div>
 
-            <!-- Status / Role Hints -->
             <div class="mt-1 flex flex-wrap justify-center gap-1">
               ${isMe ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-200">Bạn</span>' : ''}
               ${!p.alive ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-950 text-rose-400">Đã chết</span>' : ''}
@@ -2651,7 +2615,6 @@ Yêu cầu bắt buộc:
       tabWolf.classList.toggle('hidden', !canSeeWolf);
       tabGhost.classList.toggle('hidden', !canSeeGhost);
 
-      // Auto-switch active tab appropriately
       if (room.status === 'playing') {
         if (!me.alive && state.activeChatChannel !== 'ghost' && state.activeChatChannel !== 'general') {
           state.activeChatChannel = 'ghost';
@@ -2864,10 +2827,10 @@ Yêu cầu bắt buộc:
 
     function escapeHtml(str) {
       return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+        .replace(/&/g, '&')
+        .replace(/</g, '<')
+        .replace(/>/g, '>')
+        .replace(/"/g, '"');
     }
 
     // Boot application

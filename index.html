@@ -173,6 +173,10 @@
           class="px-2.5 sm:px-3 py-2 rounded-xl bg-indigo-600/80 hover:bg-indigo-600 border border-indigo-400/30 text-xs sm:text-sm font-medium text-white flex items-center gap-1.5 shadow transition">
           <i class="fa-brands fa-github"></i>
           <span class="hidden sm:inline">GitHub</span>
+          <button onclick="window.setGeminiApiKey()" title="Cấu hình Gemini API Key cho Bot AI"
+          class="px-2.5 sm:px-3 py-2 rounded-xl bg-amber-600/80 hover:bg-amber-600 border border-amber-400/30 text-xs sm:text-sm font-medium text-white flex items-center gap-1.5 shadow transition">
+          <i class="fa-solid fa-brain"></i>
+          <span class="hidden sm:inline">Bot AI</span>
         </button>
       </div>
     </div>
@@ -755,6 +759,114 @@ lmao.
     // =========================================================================
     // 4. APPLICATION STATE
     // =========================================================================
+    const BOT_PERSONALITIES = {
+      'Bot Minh Triết': 'điềm tĩnh, hay phân tích logic và để ý chi tiết nhỏ',
+      'Bot Bóng Đêm': 'ít nói nhưng câu nào chất câu đó, hơi đa nghi',
+      'Bot Huyền Bí': 'nói chuyện úp mở, thích dùng ẩn dụ kiểu thầy bói',
+      'Bot Lão Làng': 'kinh nghiệm, hay nhắc mọi người bình tĩnh đừng vote bừa',
+      'Bot Sương Mù': 'hay phân vân, dễ bị lung lay nhưng cũng hay bắt bẻ',
+      'Bot Ánh Trăng': 'thân thiện, hay hỏi han nhưng âm thầm quan sát',
+      'Bot Thầm Lặng': 'ít chat, chỉ lên tiếng khi thấy ai đó sơ hở',
+      'Bot Ngây Thơ': 'hơi ngơ ngác, hay hỏi lại cho rõ tình hình',
+      'Bot Sắc Sảo': 'bắt bẻ cực gắt, thấy ai nói mâu thuẫn là dí tới cùng',
+      'Bot Can Đảm': 'thẳng tính, dám đứng ra kêu gọi treo cổ người tình nghi',
+      'Bot Bí Ẩn': 'nửa đùa nửa thật, thích tung hỏa mù'
+    };
+
+    let botConsecutiveReplies = 0;
+    let isBotThinking = false;
+
+    window.setGeminiApiKey = () => {
+      const current = localStorage.getItem('lang_tuat_gemini_key') || '';
+      const key = prompt('Dán Gemini API Key của bạn vào đây (để trống nếu muốn dùng Bot Offline):', current);
+      if (key !== null) {
+        localStorage.setItem('lang_tuat_gemini_key', key.trim());
+        showToast(key.trim() ? 'Đã lưu Gemini API Key cho Bot AI!' : 'Đã xóa API Key, chuyển sang Bot Offline.', 'success');
+      }
+    };
+
+    async function generateAIBotReply(bot, room, recentMessages, triggerReason) {
+      const apiKey = localStorage.getItem('lang_tuat_gemini_key');
+      if (!apiKey) return generateSmartOfflineReply(bot, room, recentMessages);
+
+      const aliveList = Object.values(room.players || {})
+        .filter(p => p.alive)
+        .map(p => p.name)
+        .join(', ');
+
+      const deadList = Object.values(room.players || {})
+        .filter(p => !p.alive)
+        .map(p => p.name)
+        .join(', ') || 'Chưa có ai';
+
+      const roleInfo = ROLES[bot.role] || ROLES.villager;
+      const personality = BOT_PERSONALITIES[bot.name] || 'tự nhiên, hài hước kiểu game thủ Việt Nam';
+
+      let secretKnowledge = `Vai trò bí mật của bạn là: ${roleInfo.name} (${roleInfo.team === 'wolf' ? 'Phe Ma Sói - phải giả vờ làm người tốt, đổ tội cho người khác' : 'Phe Dân Làng - phải tìm ra Ma Sói'}).`;
+      if (bot.role === 'werewolf') {
+        const teammates = Object.values(room.players || {})
+          .filter(p => p.role === 'werewolf' && p.uid !== bot.uid)
+          .map(p => p.name);
+        if (teammates.length > 0) secretKnowledge += ` Đồng bọn Ma Sói của bạn là: ${teammates.join(', ')} (tuyệt đối không bán đứng đồng bọn).`;
+      } else if (bot.role === 'seer' && room.nightActions?.seerTarget) {
+        const tName = room.players[room.nightActions.seerTarget]?.name;
+        const tTeam = room.nightActions.seerResult === 'wolf' ? 'Ma Sói' : 'Người tốt';
+        if (tName) secretKnowledge += ` Đêm qua bạn đã soi ${tName} và biết người này là ${tTeam}.`;
+      }
+
+      const chatHistoryText = recentMessages
+        .filter(m => m.channel === 'general')
+        .slice(-10)
+        .map(m => `${m.senderName}: ${m.text}`)
+        .join('\n');
+
+      const promptText = `Bạn đang đóng vai người chơi tên "${bot.name}" trong game Ma Sói online cùng bạn bè Việt Nam.
+Tính cách của bạn: ${personality}.
+${secretKnowledge}
+
+Trạng thái ván đấu hiện tại (Ngày ${room.dayCount}, giai đoạn: ${room.phase}):
+- Sự kiện vừa xảy ra: ${room.lastEventText || 'Bắt đầu ngày mới'}
+- Người còn sống: ${aliveList}
+- Người đã chết: ${deadList}
+- Lý do bạn lên tiếng lúc này: ${triggerReason}
+
+Đoạn chat gần đây trong làng:
+${chatHistoryText || '(Chưa có ai nói gì)'}
+
+Yêu cầu bắt buộc:
+1. Trả lời bằng tiếng Việt tự nhiên, ngắn gọn (1-2 câu, tối đa 30 từ), đúng kiểu chat game của giới trẻ Việt Nam.
+2. Phản hồi trực tiếp vào nội dung người chơi hoặc bot khác vừa nói ở trên (nếu có), tuyệt đối KHÔNG hỏi những câu vô lý trái với sự kiện vừa xảy ra.
+3. Không bao giờ tự khai thẳng vai trò trừ khi thực sự cần thiết để tự cứu mình.
+4. Chỉ xuất ra đúng nội dung câu chat của "${bot.name}", không kèm tên ở đầu hay dấu ngoặc kép.`;
+
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptText }] }],
+            generationConfig: { temperature: 0.85, maxOutputTokens: 90 }
+          })
+        });
+        const data = await res.json();
+        const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        return reply || generateSmartOfflineReply(bot, room, recentMessages);
+      } catch (err) {
+        console.warn('Gemini Bot fallback:', err);
+        return generateSmartOfflineReply(bot, room, recentMessages);
+      }
+    }
+
+    function generateSmartOfflineReply(bot, room, recentMessages) {
+      const lastMsg = [...recentMessages].reverse().find(m => !m.isSystem && m.senderId !== bot.uid);
+      const hadDeath = (room.lastEventText || '').includes('sát hại');
+      if (lastMsg) {
+        return `${lastMsg.senderName} nói nghe cũng có lý, nhưng tui vẫn thấy hơi cấn cấn sao á.`;
+      }
+      return hadDeath
+        ? 'Đêm qua mất người rồi, hôm nay phải lọc kỹ chứ không là ăn cứt cả làng đấy trời fahh!'
+        : 'Đêm qua không ai chết, chắc Bảo Vệ hoặc Phù Thủy cứu chuẩn rồi hoặc hết cứu :).';
+    }
     let state = {
       roomId: null,
       nickname: '',
@@ -1369,6 +1481,10 @@ lmao.
         const hadMore = msgs.length > state.messages.length && state.messages.length > 0;
         state.messages = msgs;
         if (hadMore) sfx.playChatPop();
+        const newestMsg = msgs[msgs.length - 1];
+        if (newestMsg) {
+          handleConversationFlow(newestMsg);
+        }
         renderChatMessages();
       }, (error) => {
         console.error('Messages snapshot error:', error);
@@ -2105,8 +2221,10 @@ lmao.
 
     async function postMessageToRoom(roomCode, msgObj) {
       if (isOfflineDemoMode || !db) {
-        state.messages.push({ id: String(Date.now() + Math.random()), ...msgObj });
+        const newMsg = { id: String(Date.now() + Math.random()), ...msgObj };
+        state.messages.push(newMsg);
         renderChatMessages();
+        handleConversationFlow(newMsg);
         return;
       }
       try {
@@ -2125,7 +2243,65 @@ lmao.
         createdAt: Date.now()
       });
     }
+    async function handleConversationFlow(latestMsg) {
+      const room = state.roomData;
+      if (!room || room.hostId !== currentUser.uid || room.status !== 'playing') return;
+      if (room.phase !== 'day' && room.phase !== 'vote') return;
+      if (latestMsg.isSystem || latestMsg.channel !== 'general') return;
 
+      const senderPlayer = room.players?.[latestMsg.senderId];
+      if (senderPlayer && !senderPlayer.isBot) {
+        botConsecutiveReplies = 0;
+      } else {
+        botConsecutiveReplies++;
+        if (botConsecutiveReplies > 2) return;
+      }
+
+      if (isBotThinking) return;
+
+      const aliveBots = Object.values(room.players || {}).filter(
+        p => p.isBot && p.alive && p.uid !== latestMsg.senderId
+      );
+      if (aliveBots.length === 0) return;
+
+      const lowerText = latestMsg.text.toLowerCase();
+      let chosenBot = aliveBots.find(b => lowerText.includes(b.name.toLowerCase()));
+
+      if (!chosenBot) {
+        const chance = (senderPlayer && !senderPlayer.isBot) ? 0.75 : 0.45;
+        if (Math.random() > chance) return;
+        chosenBot = aliveBots[Math.floor(Math.random() * aliveBots.length)];
+      }
+
+      isBotThinking = true;
+      try {
+        const delay = 1800 + Math.floor(Math.random() * 1800);
+        await new Promise(r => setTimeout(r, delay));
+
+        if (!state.roomData || (state.roomData.phase !== 'day' && state.roomData.phase !== 'vote')) return;
+        if (!state.roomData.players?.[chosenBot.uid]?.alive) return;
+
+        const replyText = await generateAIBotReply(
+          chosenBot,
+          state.roomData,
+          state.messages,
+          `Phản hồi lại câu nói của ${latestMsg.senderName}: "${latestMsg.text}"`
+        );
+
+        if (replyText) {
+          await postMessageToRoom(state.roomId, {
+            channel: 'general',
+            senderId: chosenBot.uid,
+            senderName: chosenBot.name,
+            text: replyText,
+            isSystem: false,
+            createdAt: Date.now()
+          });
+        }
+      } finally {
+        isBotThinking = false;
+      }
+    }
     // =========================================================================
     // 12. UI RENDERING & COUNTDOWN TIMER
     // =========================================================================
